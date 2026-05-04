@@ -42,7 +42,7 @@ sql_reflection_agent/
 │   └── main.py           # FastAPI app entrypoint
 ├── streamlit_app/
 │   └── app.py            # Streamlit UI
-├── .env.example
+├── .env
 ├── requirements.txt
 ├── run.py                # Single-command launcher
 └── README.md
@@ -86,7 +86,7 @@ pip install -r requirements.txt
 ### 5. Configure environment
 
 ```bash
-cp .env.example .env
+cp .env .env
 # Defaults work out of the box — edit only if your Ollama setup differs
 ```
 
@@ -176,19 +176,7 @@ The in-memory SQLite DB is seeded with e-commerce data on startup:
 Edit `.env`:
 
 ```env
-OLLAMA_MODEL=llama3.2
+OLLAMA_MODEL=mistral:7B
 ```
 
 Restart with `python run.py`.
-
----
-
-## Extending the POC
-
-Some ideas to take this further:
-
-- **Connect a real DB** — swap `seed.py` for a PostgreSQL/MySQL connection string
-- **Add memory** — use LangGraph's checkpointing to remember past queries in a session
-- **Multi-agent** — add a validator agent that checks SQL before execution
-- **Tool calling** — expose `execute_sql` as a proper LangChain tool and let the LLM decide when to call it
-- **Evaluation** — log all attempts + reflections to a file to measure model accuracy
