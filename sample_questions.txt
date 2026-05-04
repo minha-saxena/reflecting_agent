@@ -1,0 +1,105 @@
+SQL Practice Questions
+
+EASY
+
+1. Get all customers from New York.
+2. List all products with price greater than 100.
+3. Get all products sorted by price in descending order.
+4. Retrieve the top 3 most expensive products.
+5. Count the total number of customers.
+6. Count the number of customers in each city.
+7. List all orders along with customer names.
+8. Show order_id, product_id, and total price (price * quantity).
+9. Get all completed orders.
+10. Find all products with stock less than 50.
+
+MEDIUM
+
+11. Get customer name, product name, quantity, and order date for each order.
+12. Calculate total amount for each order.
+13. Show total amount spent by each customer.
+14. Find the top 3 customers by total spending.
+15. Calculate total revenue for each product category.
+16. Count number of orders per month.
+17. Find customers who have not placed any orders.
+18. Find products that have never been ordered.
+19. Count orders grouped by status.
+20. Calculate average order value.
+21. Find total quantity sold per product.
+22. Get revenue generated per product.
+23. Find customers who placed more than 2 orders.
+24. Get latest order for each customer.
+25. Find total number of orders per city.
+
+HARD
+
+26. Find the highest revenue generating product in each category.
+27. Calculate cumulative revenue over time.
+28. Find customers who placed orders in both February and March 2024.
+29. Find the second highest spending customer.
+30. Find the most popular product (highest quantity sold).
+31. Calculate each product’s percentage contribution to total revenue.
+32. Find customers who placed more than one order (repeat customers).
+33. Find customers who spent more than 1000.
+34. Find days where no orders were placed.
+35. Rank customers based on total spending.
+36. Calculate revenue split by order status (completed vs pending vs cancelled).
+37. Find which city generates the highest revenue.
+38. Find the most recent order for each product.
+39. Detect products with declining sales month over month.
+40. Find customers whose average order value is greater than overall average.
+
+
+SQL Advanced Practice (Window Functions, Subqueries, Date Logic)
+
+WINDOW FUNCTIONS
+
+1. Rank customers by total spending (highest to lowest).
+2. Assign dense rank to products based on total revenue.
+3. Show each order with cumulative revenue over time.
+4. Find the first order for each customer.
+5. Find the most recent order for each customer using ROW_NUMBER().
+6. Calculate running total of quantity sold per product.
+7. Show difference in days between consecutive orders for each customer.
+8. Find top 2 most purchased products in each category.
+9. Calculate moving average of daily revenue (3-day window).
+10. For each order, show customer's previous order date.
+
+SUBQUERIES
+
+11. Find customers whose total spending is above average spending of all customers.
+12. Get products whose price is higher than average product price.
+13. Find customers who placed at least one order for "Electronics".
+14. Get products that were ordered more than the average quantity ordered.
+15. Find customers who never placed any orders (NOT EXISTS).
+16. Find products that were never ordered (NOT EXISTS).
+17. Get orders where quantity is greater than average quantity of that product.
+18. Find customers who placed the highest number of orders.
+19. Get customers whose latest order is in March 2024.
+20. Find products that appear in more than 3 orders.
+
+DATE / TIME LOGIC
+
+21. Count number of orders per month.
+22. Find revenue generated per month.
+23. Get orders placed in the last 30 days (relative filtering).
+24. Find customers who have not ordered in the last 60 days.
+25. Calculate days since last order for each customer.
+26. Find month with highest revenue.
+27. Compare month-over-month revenue growth.
+28. Get weekly order counts.
+29. Find first order date and last order date for each customer.
+30. Find days with zero orders (generate missing dates logic).
+
+DATA EDGE CASE / SCENARIO QUERIES
+
+31. Insert a customer who has never placed an order, then query them.
+32. Insert a product that has never been ordered, then detect it.
+33. Insert multiple orders on same day and test ranking logic.
+34. Insert orders with same revenue and test dense_rank vs rank.
+35. Insert future-dated orders and filter them correctly.
+36. Simulate cancelled-heavy data and compute valid revenue (exclude cancelled).
+37. Add null order_date values and handle them safely.
+38. Simulate stock = 0 products and detect out-of-stock but ordered items.
+39. Add duplicate orders and identify duplicates using window functions.
+40. Detect customers who stopped ordering after a certain date (churn logic).
