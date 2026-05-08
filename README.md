@@ -1,25 +1,91 @@
 # SQL Reflection Agent
 
-A LangGraph-powered reflection agent that translates natural language questions into SQL queries, executes them against a SQLite database, and **reflects on its own errors** to self-correct — looping until it gets it right or hits the max attempt limit.
+> Ask a question in plain English. Get SQL. Watch the agent think, fail, reflect, and fix itself.
+
+---
+
+## What is this?
+
+Imagine you have a database full of business data — customers, orders, products — and you want answers from it. Normally you'd need to know SQL to query it. This agent removes that barrier.
+
+You type a question like:
+
+> *"Which customers spent the most last month?"*
+
+The agent translates it into SQL, runs it, and returns the results. But here's the interesting part — **if the SQL fails or is logically wrong, the agent doesn't just give up**. It reads the error, reflects on what went wrong, rewrites the query, and tries again. This loop is called a **reflection loop**, and it's what makes this more than just a simple "text to SQL" tool.
+
+---
+
+## How does it think?
 
 ```
-[Generate SQL] → [Execute] → success → [Done]
-                     ↓ error
-                 [Reflect]
-                     ↓
-               [Generate SQL]  ← retries with reflection context
-               (max 3 attempts)
+You ask a question
+        ↓
+[Generate SQL]   ←─────────────────────────┐
+        ↓                                  │
+[Execute SQL]                              │
+        ↓                                  │
+   Did it work?                            │
+   ├── Yes → [Review] → Correct? → [Done]  │
+   └── No  → [Reflect on the error] ───────┘
+              (max 3 attempts, then stops)
 ```
+
+At each step you can see exactly what the agent is doing — what SQL it wrote, what error it got, and what it understood from that error. Nothing is hidden.
+
+---
+
+## Why is this interesting?
+
+Most AI tools give you one shot. This agent mimics how a **human analyst** actually works:
+
+1. Write a query
+2. Run it
+3. Read the error
+4. Fix it
+5. Repeat until it works
+
+The difference is the agent can do this in seconds, and it explains its reasoning at every step.
+
+This is a proof-of-concept for **reflection agents** — a pattern in AI where the model evaluates and corrects its own output. It's one of the building blocks of more advanced autonomous AI systems.
+
+---
 
 ## Stack
 
-| Layer | Tech |
+| Layer | What it does |
 |---|---|
-| Agent framework | LangGraph + LangChain |
-| LLM | Ollama (qwen2.5-coder / mistral:7b) |
-| Backend API | FastAPI + SSE streaming |
-| Frontend | Streamlit |
-| Database | SQLite in-memory |
+| LangGraph | Manages the generate → execute → reflect loop |
+| LangChain | Connects to the LLM |
+| Ollama | Runs the AI model locally on your machine (no API keys needed) |
+| FastAPI | Backend API that runs the agent |
+| Streamlit | Web UI to interact with the agent |
+| SQLite | In-memory database with sample e-commerce data |
+
+---
+
+## Sample Data
+
+The agent comes preloaded with a small e-commerce database so you can start asking questions immediately:
+
+- **customers** — 10 people with names, emails, cities, and join dates
+- **products** — 12 items across Electronics, Furniture, and Stationery categories
+- **orders** — 29 orders with quantities, dates, and statuses (completed / pending / cancelled)
+
+Edge cases are intentionally included — customers with no orders, products never ordered, cancelled order patterns, and null dates — to make the agent work harder.
+
+---
+
+## Things you can ask
+
+```
+Calculate total revenue for each product category.
+Rank customers by number of orders and total spend.
+For each order, show the customer's previous order date.
+Which customers have never placed an order?
+Get orders where quantity is greater than the average for that product.
+Average order value by category.
+```
 
 ---
 
@@ -29,20 +95,22 @@ A LangGraph-powered reflection agent that translates natural language questions 
 sql_reflection_agent/
 ├── app/
 │   ├── agent/
-│   │   ├── graph.py      # LangGraph graph — reflection loop
+│   │   ├── graph.py      # LangGraph graph — the reflection loop
 │   │   ├── nodes.py      # generate_sql, execute_sql, reflect, done nodes
-│   │   ├── state.py      # AgentState TypedDict
-│   │   └── tools.py      # SQL execution tool
+│   │   ├── state.py      # AgentState — what the agent remembers between steps
+│   │   └── tools.py      # SQL execution + safety checks
 │   ├── api/
 │   │   └── routes.py     # FastAPI routes (/query, /query/stream, /schema, /health)
 │   ├── core/
-│   │   └── config.py     # Settings via pydantic-settings + .env
+│   │   └── config.py     # Settings loaded from .env
 │   ├── db/
-│   │   └── seed.py       # SQLite in-memory setup + sample e-commerce data
+│   │   └── seed.py       # SQLite setup + sample data
+│   ├── utils/
+│   │   └── logger.py     # Centralised logging
 │   └── main.py           # FastAPI app entrypoint
 ├── streamlit_app/
 │   └── app.py            # Streamlit UI
-├── .env
+├── .env.example
 ├── requirements.txt
 ├── run.py                # Single-command launcher
 └── README.md
@@ -60,9 +128,9 @@ sql_reflection_agent/
 ### 2. Pull a model
 
 ```bash
-ollama pull qwen2.5-coder   # recommended for SQL
+ollama pull qwen2.5-coder   # recommended for SQL tasks
 # or
-ollama pull mistral:7b 
+ollama pull mistral:7b
 ```
 
 ### 3. Start Ollama with CORS enabled
@@ -86,7 +154,7 @@ pip install -r requirements.txt
 ### 5. Configure environment
 
 ```bash
-cp .env .env
+cp .env.example .env
 # Defaults work out of the box — edit only if your Ollama setup differs
 ```
 
@@ -112,7 +180,7 @@ Returns service status and configured model.
 Returns the database schema as JSON.
 
 ### `POST /api/query`
-Blocking endpoint. Runs the full agent and returns the complete result.
+Blocking endpoint — runs the full agent and returns the complete result.
 
 ```json
 {
@@ -134,7 +202,7 @@ Response:
 ```
 
 ### `POST /api/query/stream`
-Streaming SSE endpoint. Emits each agent step in real-time as the agent runs.
+Streaming SSE endpoint — emits each agent step in real time.
 
 Each event is one of:
 - `{"type": "step", "step": {...}}` — a new step in the agent loop
@@ -143,31 +211,22 @@ Each event is one of:
 
 ---
 
-## How the Reflection Loop Works
+## How the Reflection Loop Works (Technical)
 
-The agent is built as a **LangGraph StateGraph** with 4 nodes:
+The agent is a **LangGraph StateGraph** with 4 nodes:
 
-1. **`generate_sql`** — calls Ollama with the question + schema (+ reflection notes if retrying). Extracts SQL from the response.
-2. **`execute_sql`** — runs the SQL against SQLite. On error, sets `error` in state.
-3. **`reflect`** — if there was an error, calls Ollama again asking it to explain what went wrong and how to fix it. Stores the reflection in state.
-4. **`done`** — logs the final success step.
+1. **`generate_sql`** — prompts Ollama with the question + full schema context. On retry, also includes the previous error and reflection. Extracts SQL from the response.
+2. **`execute_sql`** — runs the SQL against SQLite. Only `SELECT` statements are allowed. On error, sets `error` in state.
+3. **`reflect`** — prompts Ollama to explain what went wrong and produce corrected SQL. On success, acts as a strict reviewer checking logical correctness against the schema.
+4. **`done`** — logs the final result.
 
-The **conditional edge** after `execute_sql` decides:
-- `success=True` → go to `done`
-- `error` + `attempt < max_attempts` → go to `reflect` → back to `generate_sql`
-- `error` + `attempt >= max_attempts` → go to `END` (give up)
+**Conditional routing after `execute_sql`:**
+- Success → `reflect` (one review pass)
+- Error + attempts remaining → `reflect` → `generate_sql`
+- Max attempts hit → `done` (returns best result so far)
 
-The key insight: on retry, `generate_sql` receives **both the original error AND the LLM's own reflection** about what went wrong — this is what makes it a reflection agent, not just a retry loop.
-
----
-
-## Sample Data
-
-The in-memory SQLite DB is seeded with e-commerce data on startup:
-
-- **customers** — 8 records (name, email, city, joined_date)
-- **products** — 10 records across Electronics, Furniture, Stationery
-- **orders** — 18 records with status: completed / pending / cancelled
+**What makes it a reflection agent vs a retry loop:**
+On each retry, `generate_sql` receives the original error *and* the LLM's own explanation of what went wrong. The model is correcting itself based on its own reasoning, not just re-running the same prompt.
 
 ---
 
@@ -176,7 +235,17 @@ The in-memory SQLite DB is seeded with e-commerce data on startup:
 Edit `.env`:
 
 ```env
-OLLAMA_MODEL=mistral:7B
+OLLAMA_MODEL=mistral:7b
 ```
 
 Restart with `python run.py`.
+
+---
+
+## Extending the POC
+
+- **Connect a real DB** — swap `seed.py` for a PostgreSQL/MySQL connection
+- **Add memory** — use LangGraph checkpointing to remember past queries per session
+- **Multi-agent** — add a validator agent that checks SQL before execution
+- **Evaluation** — log all attempts + reflections to measure model accuracy over time
+- **Auth** — add API key middleware to the FastAPI routes
