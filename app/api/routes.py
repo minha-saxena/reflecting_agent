@@ -6,7 +6,10 @@ from pydantic import BaseModel
 from app.agent.graph import reflection_graph
 from app.db.seed import get_schema_info, get_connection
 from app.core.config import settings
+from app.agent.tools import sanitize_question
+from app.utils.logger import get_logger
 
+logger = get_logger(__name__)
 router = APIRouter()
 
 
@@ -43,15 +46,20 @@ def schema():
 
 @router.post("/query/stream")
 async def query_stream(request: QueryRequest):
-    """
-    Runs the reflection agent and streams each step as Server-Sent Events.
-    Each event is a JSON-encoded step_log entry.
-    Final event includes result columns + rows.
-    """
+    question, warnings = sanitize_question(request.question)
+
+    if warnings:
+        for w in warnings:
+            logger.warning("Input sanitization warning: %s", w)
+
+    logger.info(
+        "Streaming query | question=%s | max_attempts=%d",
+        question, request.max_attempts,
+    )
 
     async def event_generator():
         initial_state = {
-            "question": request.question,
+            "question": question,
             "schema_info": get_schema_info(),
             "sql": None,
             "result_columns": [],
@@ -83,9 +91,9 @@ async def query_stream(request: QueryRequest):
                         await asyncio.sleep(0)
 
         except Exception as e:
+            logger.error("Agent error during streaming: %s", str(e))
             yield f"data: {json.dumps({'type': 'step', 'step': {'step': 'error', 'title': 'Agent error', 'error': str(e)}})}\n\n"
 
-        # Always emit result from last valid state
         result = {
             "type": "result",
             "success": last_valid_state.get("success", False),
@@ -94,6 +102,10 @@ async def query_stream(request: QueryRequest):
             "attempts": last_valid_state.get("attempt", 0) + 1,
             "sql": last_valid_state.get("sql"),
         }
+        logger.info(
+            "Stream complete | success=%s | rows=%d | attempts=%d",
+            result["success"], len(result["rows"]), result["attempts"],
+        )
         yield f"data: {json.dumps(result)}\n\n"
         yield "data: {\"type\": \"done\"}\n\n"
 
@@ -111,9 +123,16 @@ async def query_stream(request: QueryRequest):
 
 @router.post("/query")
 async def query(request: QueryRequest):
-    """Blocking endpoint — runs full agent and returns complete result."""
+    question, warnings = sanitize_question(request.question)
+
+    if warnings:
+        for w in warnings:
+            logger.warning("Input sanitization warning: %s", w)
+
+    logger.info("Blocking query | question=%s | max_attempts=%d", question, request.max_attempts)
+
     initial_state = {
-        "question": request.question,
+        "question": question,
         "schema_info": get_schema_info(),
         "sql": None,
         "result_columns": [],
@@ -127,6 +146,11 @@ async def query(request: QueryRequest):
     }
 
     final_state = await reflection_graph.ainvoke(initial_state)
+
+    logger.info(
+        "Blocking query complete | success=%s | attempts=%d",
+        final_state["success"], final_state["attempt"] + 1,
+    )
 
     return {
         "success": final_state["success"],
