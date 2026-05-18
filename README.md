@@ -16,6 +16,26 @@ The agent translates it into SQL, runs it, and returns the results. But here's t
 
 ---
 
+## Demo
+
+**1. Ask a question — the agent loop starts:**
+
+![UI Overview](assets/ss_ui_preview.png)
+
+**2. The agent reflects — catches a logical error and rewrites the SQL:**
+
+![Reflection Step](assets/ss_reflection.png)
+
+**3. Second reflection — catches an edge case (products never ordered):**
+
+![Edge Case Reflection](assets/ss_edge_case.png)
+
+**4. Final result — clean table output after self-correcting attempts:**
+
+![Results](assets/ss_results.png)
+
+---
+
 ## How does it think?
 
 ```
@@ -48,6 +68,55 @@ Most AI tools give you one shot. This agent mimics how a **human analyst** actua
 The difference is the agent can do this in seconds, and it explains its reasoning at every step.
 
 This is a proof-of-concept for **reflection agents** — a pattern in AI where the model evaluates and corrects its own output. It's one of the building blocks of more advanced autonomous AI systems.
+
+---
+
+## Motivation
+
+I built this project after reading about reflection agents and self-correcting LLM systems.
+
+Instead of using a single-shot text-to-SQL pipeline, I wanted to explore whether an LLM could iteratively:
+1. generate SQL,
+2. execute it,
+3. interpret failures,
+4. reflect on its own mistakes,
+5. and improve the query autonomously.
+
+The goal was not just to generate SQL, but to model the iterative workflow of a human analyst debugging queries.
+
+---
+
+## Concepts Demonstrated
+
+- Reflection agents / self-correcting LLM workflows
+- LangGraph StateGraph orchestration
+- Stateful retry and error recovery
+- Tool-using AI agents
+- Streaming responses with Server-Sent Events (SSE)
+- Structured agent state management
+- SQL safety validation
+- Local LLM inference with Ollama
+- FastAPI + Streamlit integration
+- Transparent execution tracing
+
+---
+
+## Example Reflection Trace
+
+Question:
+"Which customers generated the highest revenue?"
+
+Attempt 1:
+- Generated SQL using only the `customers` table
+- Execution failed due to missing revenue fields
+
+Reflection:
+- Revenue must be derived from `orders` and `products`
+- Need joins and aggregation
+
+Attempt 2:
+- Re-generated SQL with joins and SUM(quantity * price)
+- Query executed successfully
 
 ---
 
@@ -85,6 +154,7 @@ For each order, show the customer's previous order date.
 Which customers have never placed an order?
 Get orders where quantity is greater than the average for that product.
 Average order value by category.
+Assign dense rank to products based on total revenue.
 ```
 
 ---
@@ -110,6 +180,7 @@ sql_reflection_agent/
 │   └── main.py           # FastAPI app entrypoint
 ├── streamlit_app/
 │   └── app.py            # Streamlit UI
+├── assets/               # Screenshots
 ├── .env.example
 ├── requirements.txt
 ├── run.py                # Single-command launcher
@@ -138,6 +209,7 @@ ollama pull mistral:7b
 ```bash
 OLLAMA_ORIGINS="*" ollama serve
 ```
+Required only if Streamlit and FastAPI run on different origins.
 
 ### 4. Clone and set up
 
@@ -153,9 +225,17 @@ pip install -r requirements.txt
 
 ### 5. Configure environment
 
+Set up your env with 
 ```bash
-cp .env.example .env
-# Defaults work out of the box — edit only if your Ollama setup differs
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=qwen2.5-coder
+OLLAMA_MAX_RETRIES=3
+OLLAMA_RETRY_DELAY=0.5
+
+MAX_ATTEMPTS=3
+API_HOST=0.0.0.0
+API_PORT=8000
+API_BASE=http://localhost:8000/api
 ```
 
 ### 6. Run
@@ -239,6 +319,24 @@ OLLAMA_MODEL=mistral:7b
 ```
 
 Restart with `python run.py`.
+
+---
+
+## Limitations
+
+This is a proof-of-concept reflection agent, not a production-grade SQL system.
+
+Current limitations:
+- The Latency is abit high, than what is expected, because it has multiple LLM calls
+- Reflection quality depends on the underlying LLM
+- Large schemas may exceed prompt context limits
+- Semantic correctness can still fail even if SQL executes successfully
+- SQLite-oriented prompting may not generalize perfectly to all SQL dialects
+
+Safety protections:
+- Only `SELECT` statements are allowed
+- Multiple SQL statements are rejected
+- Queries run against an isolated demo database
 
 ---
 

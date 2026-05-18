@@ -1,7 +1,9 @@
 import sqlite3
 from typing import Optional
+from app.utils.logger import get_logger
 
-# Single shared in-memory connection
+logger = get_logger(__name__)
+
 _conn: Optional[sqlite3.Connection] = None
 
 
@@ -13,6 +15,7 @@ def get_connection() -> sqlite3.Connection:
 
 
 def _init_db() -> sqlite3.Connection:
+    logger.info("Initialising in-memory SQLite database...")
     conn = sqlite3.connect(":memory:", check_same_thread=False)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
@@ -46,8 +49,6 @@ def _init_db() -> sqlite3.Connection:
     );
     """)
 
-    # --- BASE DATA ---
-
     cursor.executemany(
         "INSERT INTO customers VALUES (?,?,?,?,?)",
         [
@@ -65,16 +66,16 @@ def _init_db() -> sqlite3.Connection:
     cursor.executemany(
         "INSERT INTO products VALUES (?,?,?,?,?)",
         [
-            (1,  "Laptop Pro 15",      "Electronics", 1299.99, 45),
-            (2,  "Wireless Mouse",     "Electronics",   29.99, 200),
-            (3,  "Mechanical Keyboard","Electronics",   89.99, 150),
-            (4,  "USB-C Hub",          "Electronics",   49.99, 300),
-            (5,  "Standing Desk",      "Furniture",    599.99,  20),
-            (6,  "Ergonomic Chair",    "Furniture",    449.99,  35),
-            (7,  "Notebook Set",       "Stationery",    12.99, 500),
-            (8,  "Ballpoint Pens",     "Stationery",     5.99, 800),
-            (9,  'Monitor 27"',        "Electronics",  399.99,  60),
-            (10, "Webcam HD",          "Electronics",   79.99, 120),
+            (1,  "Laptop Pro 15",       "Electronics", 1299.99, 45),
+            (2,  "Wireless Mouse",      "Electronics",   29.99, 200),
+            (3,  "Mechanical Keyboard", "Electronics",   89.99, 150),
+            (4,  "USB-C Hub",           "Electronics",   49.99, 300),
+            (5,  "Standing Desk",       "Furniture",    599.99,  20),
+            (6,  "Ergonomic Chair",     "Furniture",    449.99,  35),
+            (7,  "Notebook Set",        "Stationery",    12.99, 500),
+            (8,  "Ballpoint Pens",      "Stationery",     5.99, 800),
+            (9,  'Monitor 27"',         "Electronics",  399.99,  60),
+            (10, "Webcam HD",           "Electronics",   79.99, 120),
         ],
     )
 
@@ -101,8 +102,6 @@ def _init_db() -> sqlite3.Connection:
             (18, 8, 6,  1, "2024-04-01", "completed"),
         ],
     )
-
-    # --- EDGE CASE DATA ---
 
     # Customers with NO orders
     cursor.executemany(
@@ -155,16 +154,47 @@ def _init_db() -> sqlite3.Connection:
     )
 
     conn.commit()
+    logger.info("Database seeded successfully.")
     return conn
 
 
 def get_schema_info() -> str:
-    return """Tables:
-- customers(id INTEGER PK, name TEXT, email TEXT, city TEXT, joined_date TEXT)
-- products(id INTEGER PK, name TEXT, category TEXT, price REAL, stock INTEGER)
-- orders(id INTEGER PK, customer_id INTEGER FK, product_id INTEGER FK,
-         quantity INTEGER, order_date TEXT, status TEXT)
-  status values: 'completed' | 'pending' | 'cancelled'
+    return """DATABASE SCHEMA
+===============
 
-Sample cities: New York, Los Angeles, Chicago, Houston, Phoenix, San Antonio
-Sample categories: Electronics, Furniture, Stationery"""
+TABLE: customers
+  - id          INTEGER  PRIMARY KEY
+  - name        TEXT     NOT NULL          -- e.g. 'Alice Johnson', 'Bob Smith'
+  - email       TEXT     NOT NULL          -- e.g. 'alice@example.com'
+  - city        TEXT                       -- e.g. 'New York', 'Los Angeles', 'Chicago'
+  - joined_date TEXT                       -- format: 'YYYY-MM-DD'
+
+TABLE: products
+  - id          INTEGER  PRIMARY KEY
+  - name        TEXT     NOT NULL          -- e.g. 'Laptop Pro 15', 'Wireless Mouse'
+  - category    TEXT                       -- ONLY: 'Electronics', 'Furniture', 'Stationery'
+  - price       REAL     NOT NULL          -- unit price, e.g. 1299.99
+  - stock       INTEGER  DEFAULT 0         -- units in stock
+
+TABLE: orders
+  - id          INTEGER  PRIMARY KEY
+  - customer_id INTEGER  NOT NULL  REFERENCES customers(id)
+  - product_id  INTEGER  NOT NULL  REFERENCES products(id)
+  - quantity    INTEGER  NOT NULL  DEFAULT 1
+  - order_date  TEXT               -- format: 'YYYY-MM-DD', can be NULL
+  - status      TEXT               -- ONLY: 'completed', 'pending', 'cancelled'
+
+RELATIONSHIPS
+  orders.customer_id  →  customers.id
+  orders.product_id   →  products.id
+
+IMPORTANT NOTES
+  - Revenue = products.price * orders.quantity  (no price column in orders)
+  - Total spend per customer: SUM(products.price * orders.quantity)
+  - Filter completed orders with: WHERE orders.status = 'completed'
+  - Some orders have NULL order_date — use IS NOT NULL to exclude them
+  - Some customers have NO orders (ids 9, 10)
+  - Some products have NEVER been ordered (ids 11, 12)
+  - category is on the products table, NOT on orders
+  - Use products.category, NOT orders.category (orders has no category column)
+"""
