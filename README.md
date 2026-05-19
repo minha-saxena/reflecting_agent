@@ -222,11 +222,11 @@ source .venv/bin/activate      # Windows: .venv\Scripts\activate
 
 pip install -r requirements.txt
 ```
-
 ### 5. Configure environment
 
-Set up your env with 
-```bash
+Create a `.env` file in the project root:
+
+```env
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=qwen2.5-coder
 OLLAMA_MAX_RETRIES=3
@@ -237,6 +237,9 @@ API_HOST=0.0.0.0
 API_PORT=8000
 API_BASE=http://localhost:8000/api
 ```
+
+Defaults work out of the box — edit only if your Ollama setup differs.
+
 
 ### 6. Run
 
